@@ -1,106 +1,121 @@
 import openpyxl
 import math
-
 class Station:
     name = ''
     longitude = 0 #East-West
     width = 0 #North-South
     hub = False
-    def __init__(self, name, longitude, width, hub):
+    history = None
+    year = None
+    def __init__(self, name, longitude, width, hub, history, year ):
         self.name = name
-        self.longitude = longitude
-        self.width = width
-        self.hub = hub
+        self.longitude = float(longitude)
+        self.width = float(width)
+        if hub!= None and hub!=False:
+            self.hub = True
+        self.history = history
+        if self.history!=None:
+            self.year = year
     def output (self):
         result = self.name+' '+str(self.longitude)+' '+str(self.width)+' '
         if self.hub:
             result+= 'узловая'
+        if self.history!=None:
+            result+=' '+self.history
         print (result)
     def isEqual(self, obj2):
         return (self.name == obj2.name and self.longitude == obj2.longitude and self.width == obj2.width and self.hub == obj2.hub)
 
-def sorted_width(list_station):
-    min_list_width = []
-    for i in range (int(math.sqrt(len(list_station)))):
-        min_list_width.append(Station('', 0, 100, False))
-    #for i in range (len(list_station)//10):
-    #    min_list_width.append(Station('', 0, 100, False))
-    for x in list_station:
-        for i in range (len(min_list_width)):
-            if x.width<min_list_width[i].width:
-                for j in range (len(min_list_width)-1, i, -1):
-                    min_list_width[j] = min_list_width[j-1]
-                min_list_width[i] = x
-                #x.output()
-                break
-    return min_list_width
+class Vector:
+    list_station = []
+    isEast = None
+    isNorth = None
+    def __init__(self, list_station):
+        self.list_station = list_station.copy()
+        isEast = list_station[-1].longitude>list_station[0].longitude
+        isNorth = list_station[-1].width>list_station[0].width
+    def angle_vector(self):
+        #угол между y = 0 и вектором
+        return math.atan((self.list_station[-1].width-self.list_station[0].width)/(self.list_station[-1].longitude-self.list_station[0].longitude))
+    def output(self):
+        print (self.list_station[0].name, '-', self.list_station[-1].name)
 
-def min_longitude(list_station):
-    result = Station('', 100, 100, False)
-    for x in list_station:
-        if x.longitude<result.longitude:
-            result = x
+def find_next_station_of_vector(list_piece, init_station):
+    r_min = 5
+    station_temp = Station('', 0, 0, None, None, None)
+    for x in list_piece:
+        r_temp = math.sqrt((init_station.width-x.width)**2+(init_station.longitude-x.longitude)**2)
+        if r_temp<r_min:
+            r_min = r_temp
+            station_temp = Station(x.name, x.longitude, x.width, x.hub, x.history, x.year)
+    return station_temp
+
+def list_split(list_piece, angle_vector, init_station, isNorth, isEast):
+    list_result = []
+    angle_temp = 0
+    crutch = True
+    for x in list_piece:
+        if ((isNorth and x.width>init_station.width) or (not isNorth and x.width<= init_station.width))and ((isEast and x.longitude>init_station.longitude)or (not isEast and x.width<=init_station.longitude)):
+            crutch = True
+        else:
+            crutch = False
+        #print (crutch)
+        #if x.width>init_station.width and x.longitude>init_station.longitude:
+          #  print (x.name)
+          #  print (isNorth)
+           # print (isEast)
+        try:
+            angle_temp = math.atan((x.width-init_station.width)/(x.longitude-init_station.longitude))
+        except:
+            angle_temp = math.atan((x.width - init_station.width) / (x.longitude - init_station.longitude+1))
+        if angle_vector-math.pi/5<angle_temp and angle_temp<angle_vector+math.pi/5 and crutch:
+            #print (x.name)
+            list_result.append(x)
+    return list_result
+
+def create_vector(list_piece, isEast, isNorth, init_station): #задается направление (одно из четырех), в квадрате проходимся по ближайшим точкам
+    list_temp = []
+    vector_list = []
+    if isEast and isNorth:
+        for x in list_piece:
+            if x.width>init_station.width and x.longitude>init_station.longitude:
+                list_temp.append(x) #по идее сортированы по долготе
+    elif isEast and not isNorth:
+        for x in list_piece:
+            if x.width<init_station.width and x.longitude>init_station.longitude:
+                list_temp.append(x)
+    elif not isEast and isNorth:
+        for x in list_piece:
+            if x.width>init_station.width and x.longitude<init_station.longitude:
+                list_temp.append(x)
+    else:
+        for x in list_piece:
+            if x.width<init_station.width and x.longitude<init_station.longitude:
+                list_temp.append(x)
+    print (len(list_temp))
+    station_temp = find_next_station_of_vector(list_temp, init_station)
+    #print (station_temp.name)
+    vector_list.append(init_station)
+    #не оптимизируем пока
+    while station_temp.hub == False:
+        vector_list.append(station_temp)
+        try:
+            angle_temp = math.atan((vector_list[-1].width-vector_list[-2].width)/(vector_list[-1].longitude-vector_list[-2].longitude))
+        except:
+            angle_temp = math.atan((vector_list[-1].width-vector_list[-2].width)/(vector_list[-1].longitude-vector_list[-2].longitude+1))
+        list_temp = list_split(list_piece, angle_temp, vector_list[-1], isNorth, isEast)
+        #print (len(list_temp))
+        station_temp = find_next_station_of_vector(list_temp, vector_list[-1])
+        print (station_temp.name)
+    vector_list.append(station_temp)
+    result = Vector(vector_list)
     return result
 
-def sort_for_longitude_scatter(list_station, min_longitude, max_longitude):
-    list_result = []
-    for x in list_station:
-        if x.longitude>=min_longitude and x.longitude<=max_longitude:
-            list_result.append(x)
-    return sorted_width(list_result)
-
 if __name__ == '__main__':
-    unless_format_information = openpyxl.load_workbook('for_python_code.xlsx', data_only = True)
-    east_ring = unless_format_information['Станции ЖД от ПЧ по широте']
+    excel_file = openpyxl.load_workbook('finally_ready_station_file.xlsx')
+    excel_file = excel_file['Sheet']
     list_station = []
-    North = float(input())
-    South = float(input())
-    East = float(input())
-    West = float(input())
-    #num = 0
-    for row in east_ring.values:
-        if row[1]!= None and row[0]!='FID':
-            name = ''
-            longitude = 0 #East-West
-            width = 0 #North-South
-            count = 0
-            hub = False
-            actual_add = True
-            for value in row:
-                if value != None:
-                    if count == 2:
-                        name = value
-                    elif count == 4:
-                        longitude = value
-                        if longitude<West or longitude>East:
-                            count = 0
-                            break
-                    elif count == 5:
-                        width = value
-                        if width>North or width<South:
-                            count = 0
-                            break
-                    elif count == 6:
-                        hub = True
-                    count +=1
-            if count >=6:
-                obj_temp = Station(name, longitude, width, hub)
-                for x in list_station:
-                    if x.isEqual(obj_temp):
-                        actual_add = False
-                if actual_add:
-                    list_station.append(obj_temp)
-    test_list = sorted_width(list_station)
-    #for x in test_list:
-    #    x.output()
-    #print (len(test_list))
-    min_long_width_station = min_longitude(test_list)
-    #min_long_width_station.output()
-    const_longitude_scatter = (East-West)/20
-    const_width_scatter = (North-South)/20
-    #cycle: North-East-South-West
-    #min_longitude = min_long_width_station.longitude
-    max_longitude = min_long_width_station.longitude+const_longitude_scatter
-    test_list = sort_for_longitude_scatter(list_station, min_long_width_station.longitude, max_longitude)
-    for x in test_list:
-        x.output()
+    for row in excel_file:
+        if row[0].value!= 'name' and row[0].value!=None:
+            list_station.append(Station(row[0].value, row[1].value, row[2].value, row[3].value, row[4].value, row[5].value))
+    create_vector(list_station, True, True, Station('МОС-ПАС-ЯРОС', 37.6575, 55.7777, True, None, None)).output()
