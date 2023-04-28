@@ -1,5 +1,12 @@
 import openpyxl
 import math
+import sklearn
+from sklearn import svm
+from sklearn import ensemble
+from sklearn import neighbors
+from sklearn import linear_model
+from sklearn import metrics
+from sklearn import cluster
 
 class Station:
     def __init__(self, name, longitude, width, hub, history, year, isSubject, isBMR):
@@ -22,6 +29,7 @@ class Station:
         self.list_adjacency = []
         self.isAdjac = False
         self.isBMR = isBMR
+        self.index = index
     def output (self):
         result = self.name+' '+str(self.longitude)+' '+str(self.width)+' '
         if self.hub:
@@ -39,171 +47,56 @@ class Station:
     def copy(self):
         return Station(self.name, self.longitude, self.width, self.hub, self.history, self.year, self.isSubject, self.isBMR)
 
-
-class Unified_Hub:
-    def __init__(self, list_hubs):
-        self.isBMR = False
-        self.unified = True
-        self.hub = True
-        longitude = 0
-        width = 0
-        self.isSubject = False
-        self.list_adjacency = []
-        self.history = None
-        self.list_hubs = []
-        for x in list_hubs:
-            if x.history!=None:
-                self.history = x.history
-                self.year = x.year
-            if x.isBMR:
-                self.isBMR = True
-            if x.isSubject:
-                self.isSubject = True
-            for y in x.list_adjacency:
-                if not y in self.list_adjacency:
-                    self.list_adjacency.append(y)
-            longitude+=x.longitude
-            width+=x.width
-            if not x.unified:
-                self.list_hubs.append(x)
-            else:
-                for y in x.list_hubs:
-                    self.list_hubs.append(y)
-        if self.history!=None:
-            self.name = self.history
-        else:
-            self.name = list_hubs[0].name
-        self.longitude = longitude/len(list_hubs)
-        self.width = width/len(list_hubs)
-    def output(self):
-        result = self.name + ' ' + str(round(self.longitude, 4)) + ' ' + str(round(self.width, 4)) + ' '
-        if self.list_hubs[0].isBMR:
-            result+=' BMR '
-        if self.hub:
-            result += 'узловая'
-        if self.history != None:
-            result += ' ' + self.history
-        string_python_shit = ''
-        for x in self.list_hubs:
-            string_python_shit = string_python_shit + ' ' + x.name
-        unified_string = ''
-        print('Unified_hub: ', result, ':', string_python_shit)
-    def copy(self):
-        list_result = []
-        for x in self.list_hubs:
-            list_result.append(x)
-        return Unified_Hub(list_result)
-
-#to do: class Unified_Station_Hub - class width list of cloth hub stations, unified adjacency and history
-
 class Vector:
-    list_station = []
-    isEast = None
-    isNorth = None
-    def __init__(self, list_station):
-        self.list_station = list_station.copy()
-        isEast = list_station[-1].longitude>list_station[0].longitude
-        isNorth = list_station[-1].width>list_station[0].width
-        if list_station[-1].hub:
-            self.name = self.list_station[0].name + '-' + self.list_station[-1].name
-        else:
-            self.name = self.list_station[0].name + '-' + self.list_station[-2].name
-    #def angle_vector(self):
-        #угол между y = 0 и вектором
-     #   return math.atan((self.list_station[-1].width-self.list_station[0].width)/(self.list_station[-1].longitude-self.list_station[0].longitude))
+    def __init__(self, list_stations):
+        self.list_stations = list_stations.copy()
     def output(self):
-        print (self.name)
+        temp_string = self.list_stations[0].name + ' - ' + self.list_stations[-1].name
+        print (temp_string)
+    def complete_output(self):
+        temp_string = self.list_stations[0].name + ' - ' + self.list_stations[-1].name + ': '
+        for i in range (1, len(self.list_stations)-1):
+            temp_string += self.list_stations[i].name + ' - '
+        print (temp_string)
+    def longitude_dif(self):
+        return self.list_stations[-1].longitude-self.list_stations[0].longitude
+    def width_dif(self):
+        return self.list_stations[-1].width-self.list_stations[-1].width
+    def length(self):
+        return distance(self.list_stations[0], self.list_stations[-1])
+    def isInVector(self, station):
+        for x in self.list_stations:
+            if x.name == station.name:
+                return True
+        return False
 
-    def num_history(self):
-        n = 0
-        for x in self.list_station:
-            if x.history!=None:
-                n+=1
-        if self.list_station[0].history!=None:
-            n-=1
-        return n
+def distance_vector(vector1, station1):
+    #S = h*vector1.length/2
+    distance1 = vector1.length()
+    distance2 = distance(vector1.list_stations[0], station1)
+    distance3 = distance(vector1.list_stations[-1], station1)
+    p = (distance1+distance2+distance3)/2
+    S = math.sqrt(p*(p-distance3)*(p-distance2)*(p-distance1))
+    h = 2*S/distance1
+    return h
 
-class Ring:
-    list_vectors = []
-    def __init__(self, list_vectors):
-        self.list_vectors = list_vectors.copy()
-    def output(self):
-        for x in self.list_vectors:
-            for y in x.list_station:
-                if y.hub == True or y.history!=None:
-                    y.output()
-                else:
-                    print (y.name)
+def distance(station1, station2):
+    return ((station1.longitude-station2.longitude)**2+(station1.width-station2.width)**2)**0.5
 
-def angle_vector(station1, station2):
-    width1 = station1.width
-    width2 = station2.width
-    longitude1 = station1.longitude
-    longitude2 = station2.longitude
-    try:
-        tan = (width1-width2)/(longitude1-longitude2)
-    except:
-        tan = (width1-width2)/(longitude1-longitude2+1)
-    isTanPos = tan>=0
-    isCosPos = longitude1>=longitude2
-    if (isTanPos and isCosPos): #I четверть
-        return math.atan(tan)
-    elif isTanPos and not isCosPos: #III четверть
-        return math.atan(tan)+math.pi
-    elif not isTanPos and isCosPos: #IV четверть
-        return math.atan(tan)+2*math.pi
-    else: #II четверть
-        return math.atan(tan)+math.pi
+def num_station_between(station1, station2):
+    temp_list = split_for_gird(list_station, max(station1.width, station2.width), min(station1.width, station2.width),
+        max(station1.longitude, station2.longitude), min(station1.longitude, station2.longitude))
+    return len(temp_list)-2
 
-def dif_angle_vectors(angle1, angle2):
-    temp = abs(angle1-angle2)
-    return abs(math.pi-temp)
-
-def find_vectors_stations(list_candidates, init_station):
-    #найти максимальную по модулю разницу между двумя углами
-    angle_max = math.pi
-    list_result = []
-    station_first = Station('',0,0,False, None, None, None, None, None)
-    station_second = Station('', 0, 0, False, None, None, None, None, None)
-    list_hub = []
-    for x in list_candidates:
-        if x.hub:
-            list_hub.append(x)
-    r_min_x = 5
-    for x in list_hub:
-        r_temp = math.sqrt((x.width-init_station.width)**2+(x.longitude-init_station.longitude)**2)
-        if r_min(r_temp, r_min_x, init_station, x):
-            station_first = x
-            r_min_x = r_temp
-    if station_first.hub:
-        for i in range (len(list_candidates)):
-            if dif_angle_vectors(angle_vector(init_station, station_first), angle_vector(init_station, list_candidates[i]))<angle_max:
-                angle_max = dif_angle_vectors(angle_vector(init_station, station_first), angle_vector(init_station, list_candidates[i]))
-                station_second = list_candidates[i]
-    else:
-        for i in range (len(list_candidates)):
-            for j in range (i+1, len(list_candidates)):
-                if dif_angle_vectors(angle_vector(init_station, list_candidates[i]), angle_vector(init_station, list_candidates[j]))<angle_max:
-                    angle_max = dif_angle_vectors(angle_vector(init_station, list_candidates[i]), angle_vector(init_station, list_candidates[j]))
-                    station_first = list_candidates[i]
-                    station_second = list_candidates[j]
-    list_result.append(station_first)
-    list_result.append(station_second)
-    return list_result
-
-def r_min(r_temp, r_min, init_station, x):
-    return (r_temp<r_min and (init_station.width!=x.width or init_station.longitude!=x.longitude))
-
-def find_close_station(list_piece, init_station):
-    temp_r_min = 5
-    temp_station = Station('', 0, 0, False, None, None, None, None, None)
-    for x in list_piece:
-        r_temp = math.sqrt((init_station.width - x.width) ** 2 + (init_station.longitude - x.longitude) ** 2)
-        if r_temp<temp_r_min and r_temp!=0:
-            temp_station = x
-            temp_r_min = r_temp
-    return temp_station
-
+class X_train:
+    def __init__(self, station1, vector1):
+        temp = []
+        temp.append(abs(vector1.list_stations[0].longitude-station1.longitude))
+        temp.append(abs(vector1.list_stations[0].width-station1.width))
+        temp.append(abs(vector1.list_stations[-1].longitude-station1.longitude))
+        temp.append(abs(vector1.list_stations[-1].width-station1.width))
+        temp.append(distance_vector(vector1, station1))
+        self.train_list = temp.copy()
 
 def split_for_gird (list_station, North, South, East, West):
     list_result = []
@@ -212,321 +105,162 @@ def split_for_gird (list_station, North, South, East, West):
             list_result.append(x)
     return list_result
 
-def history_sort(list_piece, North, South):
-    list_south = []
-    list_north = []
-    for x in list_piece:
-        if x.width>=(North+South)/2 and x.history!=None:
-            #print (x.name, 'чзх')
-            list_north.append(x)
-            #print ('чзх')
-        elif x.history!=None:
-            list_south.append(x)
-            #print ('south_чзх')
-    for i in range (len(list_south)-1, -1, -1):
-        list_north.append(list_south[i])
-    return list_north
+def create_test_adjac(list_temp, filename):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append({'A': 'adjacency'})
+    ws.append(list_name())
+    for x in list_temp:
+        ws.append({'A': x.name})
+    wb.save(filename+ '.xlsx')
 
-def first_not_ring(history_list):
-    for x in history_list:
-        if not x.isRing:
-            return x
-
-def gain_adjac_for_stations(list_piece, North, South, West, East):
-    list_temp_local = []
-    for x in list_piece:
-        if x.hub == False and (North-x.width<0.05 or x.width - South<0.05 or x.longitude-West<0.05 or East-x.longitude<0.05):
-            x.append_list_adjacency(find_close_station(list_piece, x))
-            list_temp_local.append(x)
-        #elif x.hub== False:
-            #list_temp_local.append(find_next_station_of_vector(list_piece, x))
-        else:
-            list_temp_local.append(x)
-    #for x in list_temp:
-      #  x.output()
-    for i in range (len(list_temp_local)): #не работает, хренотень какая-то, помогите
-        if list_temp_local[i].hub == False \
-                and(North - list_temp_local[i].width >= 0.05 and list_temp_local[i].width - South >= 0.05 #вынести 0.05 в константу
-                and list_temp_local[i].longitude - West >= 0.05 and East - list_temp_local[i].longitude >= 0.05): #если 2 станции
-            for j in range (len(list_temp_local)):
-                for x in list_temp_local[j].list_adjacency:
-                    if x.name == list_temp_local[i].name:
-                        list_temp_local[i].append_list_adjacency(list_temp_local[j])
-    #for x in list_temp:
-     #   x.output()
-    for x in list_temp_local:
-        #x.output()
-        if x.hub == False and (North-x.width>=0.05 and x.width - South>=0.05 and x.longitude-West>=0.05 and East-x.longitude>=0.05):
-            temporary_adjacency = []
-            for y in x.list_adjacency:
-                temporary_adjacency.append(list_temp_local[y.index])
-            x.list_adjacency.clear()
-            x.append_list_adjacency(find_close_station(temporary_adjacency, x))
-         #   x.append_list_adjacency(find_close_vector_station(temporary_adjacency, x, list_piece[x.list_adjacency[0].index]))
-    return list_temp_local
-
-def gain_adjac_for_hubs(list_piece):
-    #если две узловые станции очень рядом, они абсолютно точно связаны => их можно объединить
-    for x in list_piece:
-        if x.hub:
-            for y in list_piece:
-                for z in y.list_adjacency:
-                    if z.name == x.name:
-                        x.append_list_adjacency(y)
-                        break
-    return list_piece
-
-def remake_hub (list_piece):
+def list_name():
     list_result = []
-    temp_list_hub = []
-    for x in list_piece:
-        if x.hub:
-            temp_list_hub.append(x)
-        else:
-            list_result.append(x)
-    BMR_list = []
-    i_x = 0
-    for i in range(len(temp_list_hub)):
-        if temp_list_hub[i-i_x].isBMR:
-            BMR_list.append(temp_list_hub[i-i_x].copy())
-            del temp_list_hub[i-i_x]
-            i_x+=1
-    if len(BMR_list)>0:
-        list_result.append(Unified_Hub(BMR_list))
-    i_x = 0
-    for x in range(len(temp_list_hub)):
-        x = x-i_x
-        for y in range(len(temp_list_hub)):
-            i = 0
-            try:
-                if x!=y-i and distance(temp_list_hub[x], temp_list_hub[y-i])<0.45\
-                        and not temp_list_hub[x].isBMR and not temp_list_hub[y-i].isBMR:
-                    print('helpme')
-                    temp_list_hub[y-i].output()
-                    temp_list_hub[y-i] = Unified_Hub([temp_list_hub[x].copy(), temp_list_hub[y-i].copy()])
-                    temp_list_hub[x].output()
-                    del temp_list_hub[x]
-                    temp_list_hub[y-i].output()
-                    i_x+=1
-                    i+=1
-            except IndexError:
-                break
-    for x in temp_list_hub:
-        list_result.append(x)
+    for x in list_station:
+        list_result.append(x.name)
     return list_result
 
-def split_hub(list_piece):
-    local_list_hub = []
-    for x in list_piece:
-        if x.hub:
-            local_list_hub.append(x)
-    return local_list_hub
+def ML_fit(vector_list, main_list):
+    X_train_list = []
+    Y_train_list = []
+    for x in vector_list:
+        for y in main_list:
+            X_train_list.append(X_train(y, x).train_list)
+            if x.isInVector(y):
+                Y_train_list.append(1)
+            else:
+                Y_train_list.append(0)
+    # что-то выводят: r2, randomforest и PassiveAgressive
+    model = ensemble.RandomForestClassifier() #пока что лучший из работающих
+    print (X_train_list)
+    model.fit(X_train_list, Y_train_list)
+    return model
 
-def remove_adjac(local_station, local_adjac_station):
-    for x in local_station.list_adjacency:
-        if x.index == local_adjac_station.index:
-            local_station.list_adjacency.remove(x)
-            break
+def ML_predict(model, predict_hubs_list, predict_station_list):
+    vector_list_result = []
+    for x in predict_hubs_list:
+        for y in predict_hubs_list:
+            if x.name!=y.name:
+                temp_list = []
+                temp_list.append(x)
+                temp_list.append(y)
+                temp_vector = Vector(temp_list)
+                for z in predict_station_list:
+                    temp_data = X_train(x, temp_vector).train_list
+                    if model.predict(temp_data)>0.5 and not temp_vector.isInVector(z):
+                        temp_vector.list_stations.append(z)
+                vector_list_result.append(temp_list)
+    return vector_list_result
 
-def distance(station1, station2):
-    return ((station1.width-station2.width)**2+(station1.longitude-station2.longitude)**2)**0.5
+def find_adjac_station(init_station, index_last_station):
+    result = []
+    for i in range(len(N)):
+        if N[init_station.index][i]==1 and i!= index_last_station:
+            result.append(i)
+    return result #list of indexes
 
-def cut_list(list_temporary):
-    for x in list_temporary:
-        if x.isAdjac:
-            del x
-    return list_temporary
+def create_vector(init_station, next_index):
+    temp_vector = []
+    temp_vector.append(init_station)
+    temp_vector.append(list_station[next_index])
+    temp_index = init_station.index
+    while not list_station[next_index].hub:
+        a = next_index
+        temp_list_index = find_adjac_station(list_station[next_index], temp_index)
+        if len(temp_list_index)==1:
+            next_index = temp_list_index[0]
+        else:
+            return Vector(temp_vector)
+        temp_vector.append(list_station[next_index])
+        temp_index = a
+    return Vector(temp_vector)
 
-def isDistance(list_temporary):
-    for x in list_temporary:
-        if not x.hub:
+def create_list_vectors(init_station):
+    list_vectors = []
+    n = sum(N[init_station.index])
+    temp = find_adjac_station(init_station, -1)
+    for x in temp:
+        temp_list = create_vector(init_station, x)
+        if temp_list!=None:
+            list_vectors.append(temp_list)
+    return list_vectors
+
+def list_hubs_sort(temp_list_station):
+    result = []
+    for x in range(len(N)):
+        if sum(N[x])>2:
+            result.append(list_station[x])
+    return result
+
+def isVector(first_station, finish_station):
+    for x in main_list_vectors:
+        if x.list_stations[0].name == first_station.name and x.list_stations[-1].name == finish_station.name:
             return True
     return False
 
-def find_closest_vector_station(list_piece, init_station, vector_direction): #вот тут какая-то ошибка точно
-    r_min_first = 1
-    r_min_second = 0.2
-    first_station = list_piece[-1].copy()
-    second_station = list_piece[-1].copy()
-    list_piece = cut_list(list_piece)
-    is_state_hub = False
-    if len(list_piece)<=3 or not isDistance(list_piece):
-        return None
-    if vector_direction%2==0: #find closest longitude
-        for x in list_piece:
-            if x.name != init_station.name and not x.isAdjac and abs(x.longitude-init_station.longitude)<r_min_second:
-                if not is_state_hub:
-                    r_min_second = r_min_first
-                    second_station = first_station.copy()
-                r_min_first = abs(x.longitude - init_station.longitude)
-                first_station = x
-            elif x.hub and not init_station.hub and abs(x.longitude-init_station.longitude)<r_min_second:
-                is_state_hub = True
-                r_min_second = abs(x.longitude-init_station.longitude)
-                second_station = x
-    else:
-        for x in list_piece:
-            if x.name!= init_station.name and not x.isAdjac and abs(x.width-init_station.width)<r_min_second:
-                if not is_state_hub:
-                    r_min_second = r_min_first
-                    second_station = first_station.copy()
-                r_min_first = abs(x.width-init_station.width)
-                first_station = x
-            elif x.hub and not init_station.hub and abs(x.width-init_station.width<r_min_second):
-                is_state_hub = True
-                r_min_second = abs(x.width - init_station.width)
-                second_station = x
-    list_result = []
-    if distance(first_station, init_station)<distance(second_station, init_station):
-        list_result.append(first_station)
-        list_result.append(second_station)
-    else:
-        list_result.append(second_station)
-        list_result.append(first_station)
-    return list_result
-
-def create_small_vector(init_station, vector_direction): #vector_direction: 0- North, 1 - East, 2 - South, 3 - West
-    if vector_direction == 0:
-        list_temp = split_for_gird(temporary_main_list, init_station.width+0.5, init_station.width, init_station.longitude+0.5, init_station.longitude-0.5)
-    elif vector_direction == 1:
-        list_temp = split_for_gird(temporary_main_list, init_station.width+0.5, init_station.width-0.5, init_station.longitude+0.5, init_station.longitude)
-    elif vector_direction == 2:
-        list_temp = split_for_gird(temporary_main_list, init_station.width, init_station.width-0.5, init_station.longitude+0.5, init_station.longitude-0.5)
-    else:
-        list_temp = split_for_gird(temporary_main_list, init_station.width+0.5, init_station.width-0.5, init_station.longitude, init_station.longitude-0.5)
-    return find_closest_vector_station(list_temp, init_station, vector_direction) #выводит две станции
-
-def create_vector(init_station, vector_direction):
-    list_vector = []
-    list_vector.append(init_station)
-    temp = create_small_vector(init_station, vector_direction)
-    try:
-        for x in temp:
-            list_vector.append(x)
-    except: return None
-    temp = list_vector[2].copy()
-    init_station.isAdjac = True
-    North_or_South = 0 #0 - North, 2 - South
-    East_or_West = 1 #1 - East, 2 - West
-    count_i = 0
-    while (not temp.hub and not list_vector[-2].hub) or distance(init_station, temp)<0.45:
-        count_i+=1
-        if count_i>100:
-            return None
-        if list_vector[-1].width > list_vector[-3].width:
-            North_or_South = 0
-        else:
-            North_or_South = 2
-        if list_vector[-1].longitude>list_vector[-3].longitude:
-            East_or_West = 1
-        else:
-            East_or_West = 3
-        #temp.output()
-        r_min = 5
-        list_variaties = []
-        isNone = True
-        if count_i<3:
-            for i in range (0, 4):
-                list_variaties.append(create_small_vector(temp, i)) #очень неоптимизированно, надо будет исправить
-                if list_variaties[i]!=None and (i == North_or_South or i == East_or_West):
-                    isNone = False
-                    if distance(list_variaties[i][0], temp)<r_min:
-                        r_min = distance(list_variaties[i][0], temp)
-                        vector_direction = i
-        else:
-            for i in range (0, 4):
-                list_variaties.append(create_small_vector(temp, i))
-            if list_variaties[vector_direction]!=None:
-                isNone = False
-        if isNone:
-            return None
-        for x in list_variaties[vector_direction]:
-            if not x.hub:
-                x.isAdjac = True
-            list_vector.append(x)
-        temp = list_vector[-1].copy()
-    if distance(init_station, list_vector[-1])<0.6 or abs(init_station.width-list_vector[-1].width)>2.5:
-        return None
-    return Vector(list_vector)
-
-def remake_hub_for_vectors(vector_list, list_hub):
-    for x in vector_list:
-        for y in list_hub:
-            if y.unified:
-                for z in y.list_hubs:
-                    if x.list_station[0].name == z.name:
-                        x.list_station[0] = y.copy()
-                    elif x.list_station[-1].name == x.name:
-                        x.list_station[-1] = y.copy()
-    return vector_list
-
-def subject_split():
-    list_result = []
-    for x in list_station:
-        if x.isSubject:
-            list_result.append(x)
-    return list_result
-
-def join(list_temp):
-    result = ''
-    for x in list_temp:
-        result+= x.name+' '
-    return result
+def correct_data_for_ML():
+    #adjacency_matrix_for_hubs
+    N_hubs = []
+    new_index = 0
+    for x in list_hubs:
+        x.index = new_index
+        new_index+=1
+        temp_matrix_string = []
+        for y in list_hubs:
+            if isVector(x, y):
+                temp_matrix_string.append(1)
+            else:
+                temp_matrix_string.append(0)
+        N_hubs.append(temp_matrix_string)
+    return N_hubs
 
 if __name__ == '__main__':
-    #Создать файл .py sort_subject - проверить субъект на адекватность (4 исторические станции с 4 сторон)
+    index = 0
     excel_file = openpyxl.load_workbook('finally_ready_station_file.xlsx')
     excel_file = excel_file['Sheet']
-    list_station = []
+    main_list_station = []
+    North = 52.82
+    South = 51.4
+    East = 40
+    West = 37.1
     for row in excel_file:
-        if row[0].value!= 'name' and row[0].value!=None:
-            list_station.append(Station(row[0].value, row[1].value, row[2].value, row[3].value, row[4].value, row[5].value, row[6].value, row[7].value))
-    North = 58.3
-    South = 45.6
-    East = 55
-    West = 28
-    list_station = split_for_gird(list_station, North, South, East, West)
-    width_board = 3
-    longitude_board = 4
-    subject_list = subject_split()
-    list_vectors = []
-    print ('start_algorythm')
-    list_hub = []
-    for n in subject_list:
-        print ('SUBJECT_NAME')
-        n.output()
-        list_vectors.clear()
-        list_hub.clear()
-        temporary_main_list = split_for_gird(list_station, n.width+width_board,
-                                             n.width-width_board, n.longitude+longitude_board, n.longitude-longitude_board)
-        list_hub = split_hub(temporary_main_list)
-        #for x in list_hub:
-        #    x.output()
-        for j in range (len(list_hub)):
-            #list_hub[j].output()
-            for i in range (0, 4):
-                temp = create_vector(list_hub[j], i)
-                if temp != None:
-                    list_vectors.append(temp)
-                    #temp.output()
-                #else:
-                #    print (i)
-            print ('I am working')
-        list_hub = remake_hub(list_hub)
-        print (join(list_hub))
-        list_vectors = remake_hub_for_vectors(list_vectors, list_hub)
-        wb = openpyxl.Workbook()
-        ws_incomplete_information = wb.create_sheet("Список векторов")
-        ws_incomplete_information.append({'A': 'название', 'B': 'широта init_station', 'C': 'долгота init_station', 'D': 'широта finish_station',
-                                      'E': 'долгота finish_station', 'F': 'количество исторических поселений', 'G': 'номер вектора'})
-        num_count = 0
-        for x in list_vectors:
-            ws_incomplete_information.append({'A': x.name, 'B': x.list_station[0].width, 'C': x.list_station[0].longitude,
-                                          'D': x.list_station[-1].width, 'E': x.list_station[-1].longitude,
-                                          'F': x.num_history(), 'G': num_count})
-            ws_temp = wb.create_sheet(str(num_count))
-            ws_temp.append({'A': 'название', 'B': 'history', 'C': 'широта', 'D': 'долгота'})
-            for y in x.list_station:
-                ws_temp.append({'A': y.name, 'B': y.history, 'C': y.width, 'D': y.longitude})
-            num_count +=1
-        wb.save (n.name+'.xlsx')
+        if row[0].value != 'name' and row[0].value != None:
+            main_list_station.append(Station(row[0].value, row[1].value, row[2].value, row[3].value, row[4].value, row[5].value,
+                        row[6].value, row[7].value))
+            if row[2].value <= North and row[2].value >= South and row[1].value <= East and row[1].value >= West:
+                index+=1
+    list_station = split_for_gird(main_list_station, North, South, East, West)
+    excel_file = openpyxl.load_workbook('adjacency.xlsx')
+    excel_file = excel_file['Sheet']
+    N = []
+    for row in excel_file:
+        if row[0].value != 'adjacency' and row[0].value != None:
+            temp = []
+            i = 1
+            while i<=len(list_station):
+                temp.append(row[i].value)
+                i += 1
+            N.append(temp)
+    print (N)
+    list_hubs = list_hubs_sort(list_station)
+    main_list_vectors = []
+    for x in list_hubs:
+        temp_list_vectors = create_list_vectors(x)
+        for y in temp_list_vectors:
+            main_list_vectors.append(y)
+    #for x in main_list_vectors:
+    #    x.complete_output()
+    North = 54.1
+    South = 52.5
+    East = 40.6
+    West = 37.88
+    predict_data_list = split_for_gird(main_list_station, North, South, East, West)
+    predict_hub_list = []
+    for x in predict_data_list:
+        if x.hub:
+            predict_hub_list.append(x)
+    N_hubs = correct_data_for_ML()
+    model_hub = ML_fit(main_list_vectors, list_station)
+    vector_predict_result = ML_predict(model_hub, predict_hub_list, predict_data_list)
+    for x in vector_predict_result:
+        x.complete_output()
