@@ -1,5 +1,6 @@
 import math
 import openpyxl
+import psycorg2
 
 class Station:
     def __init__(self, name, longitude, width, hub, history, year, isSubject, isBMR):
@@ -46,6 +47,7 @@ class Point:
         self.isHub = False
         self.isDeadEnd = False
         self.history = None
+        self.isInVector = False
     def output(self, string_temp):
         print (self.x, self.y, string_temp)
 
@@ -88,16 +90,18 @@ def count_for_point(list_temp, point_temp):
     for x in list_temp:
         if distance(x, point_temp)<0.001:
             result +=1
+    #point_temp.output(str(result)+' count_point')
     return result
 
 def create_list_vectors():
     vector_list = []
     for x in hub_list:
-        x.output('hub')
-        temp_linestring = find_first_linestring(x)
-        temp_linestring.isInVector = True
-        temp_direct = find_other_station_from_line(x, temp_linestring)
-        vector_list.append(create_vector(x, temp_direct))
+        if not x.isInVector:
+            x.output('hub')
+            temp_linestring = find_first_linestring(x)
+            temp_linestring.isInVector = True
+            temp_direct = find_other_station_from_line(x, temp_linestring)
+            vector_list.append(create_vector(x, temp_direct))
     return vector_list
 
 def create_vector(init_hub, direct_point):
@@ -107,12 +111,15 @@ def create_vector(init_hub, direct_point):
     temp = direct_point
     init_hub.output('init_hub')
     direct_point.output('direct_point')
+    init_hub.isInVector = True
+    direct_point.isInVector = True
     while not temp.isHub and not temp.isDeadEnd:
         temp.output('temp')
         temp_linestring = find_first_linestring(temp)
         temp_linestring.isInVector = True
         temp = find_other_station_from_line(temp, temp_linestring)
         temp_points_list.append(temp)
+        temp.isInVector = True
     print('SUCCESS SUKA')
     if temp.isDeadEnd:
         print('Чурка')
@@ -138,10 +145,10 @@ def find_first_linestring(point1):
     return None
 
 def is_point_in_line(point1, line1):
-    if(abs(point1.x-line1.init_station.x)<0.0001 and abs(point1.y - line1.init_station.y)<0.0001):
+    if(abs(point1.x-line1.init_station.x)<0.001 and abs(point1.y - line1.init_station.y)<0.001):
         #line1.output('FUCK YOU')
         return 1
-    elif(abs(point1.x - line1.finish_station.x)<0.0001 and abs(point1.y - line1.finish_station.y)<0.0001):
+    elif(abs(point1.x - line1.finish_station.x)<0.001 and abs(point1.y - line1.finish_station.y)<0.001):
         #line1.output('FUCK YOU')
         return 2
     else:
@@ -161,6 +168,21 @@ def find_closest_station(point1):
             min_r = temp_r
             temp = x
     return temp
+
+def excel_save():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    index = 0
+    for x in vector_list:
+        temp_l = [x.init_station.name, x.finish_station.name, index]
+        ws.append(temp_l)
+        index += 1
+    for i in range(len(vector_list)):
+        ws_temp = wb.create_sheet(title=str(i))
+        for x in vector_list[i].list_points:
+            temp_l = [x.x, x.y, x.history]
+            ws_temp.append(temp_l)
+    wb.save('result.xlsx')
 
 if __name__ == '__main__':
     excel_file = openpyxl.load_workbook('finally_ready_station_file.xlsx')
@@ -201,15 +223,5 @@ if __name__ == '__main__':
     for x in vector_list:
         x.init_station = find_closest_station(x.list_points[0])
         x.finish_station = find_closest_station(x.list_points[-1])
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    index = 0
-    for x in vector_list:
-        ws.append(x.init_station.name, x.finish_station.name, index)
-        index+=1
-    for i in range (len(vector_list)):
-        ws_temp = wb.create_sheet(title=i)
-        for x in vector_list[i].list_points:
-            ws_temp.append(x.x)
-            ws_temp.append(x.y)
-    wb.save('result.xlsx')
+    conn = psycorg2.connect(dbname = 'postgres', user = 'postgres', password = 'Toplova_2006', host = 'localhost')
+    cursor = conn.cursor()
