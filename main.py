@@ -1,6 +1,6 @@
 import math
 import openpyxl
-import psycorg2
+import psycopg2
 
 class Station:
     def __init__(self, name, longitude, width, hub, history, year, isSubject, isBMR):
@@ -223,5 +223,5 @@ if __name__ == '__main__':
     for x in vector_list:
         x.init_station = find_closest_station(x.list_points[0])
         x.finish_station = find_closest_station(x.list_points[-1])
-    conn = psycorg2.connect(dbname = 'postgres', user = 'postgres', password = 'Toplova_2006', host = 'localhost')
+    conn = psycopg2.connect(dbname = 'postgres', user = 'postgres', password = 'Toplova_2006', host = 'localhost')
     cursor = conn.cursor()
